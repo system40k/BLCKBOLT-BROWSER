@@ -69,7 +69,7 @@ contextBridge.exposeInMainWorld('blckboltAPI', {
     }
   },
   on: (channel, func) => {
-    const validChannels = ['vpn-status', 'vpn-log', 'protocol-url', 'navigate', 'header-data', 'ssl-data'];
+    const validChannels = ['vpn-status', 'vpn-log', 'protocol-url', 'navigate', 'header-data', 'ssl-data', 'update-available', 'doh-updated', 'dpi-results', 'stats-update', 'privacy-log'];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => func(...args));
     }
@@ -90,3 +90,4 @@ contextBridge.exposeInMainWorld('blckboltAPI', {
     }
   }
 });
+

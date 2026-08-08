@@ -11,25 +11,23 @@ const proxyAgent = require('./modules/network/proxy-agent');
 const adblocker = require('./modules/adblocker');
 const fingerprint = require('./modules/fingerprint');
 const dohDot = require('./modules/network/doh-dot');
-const canvasBlocker = require('./modules/fingerprint/canvas-blocker');
+const { injectIntoWebContents } = require('./modules/fingerprint/canvas-inject');
 const dpiDetector = require('./modules/network/dpi-detector');
 
 let mainWindow = null;
 let splash = null;
 let tray = null;
+let webviewContents = [];
+let canvasBlockingEnabled = false;
 
 const isDev = process.env.NODE_ENV === 'development' || process.env.ELECTRON_START_URL;
 
-// Auto-updater
-let updater = null;
+// Auto-updater (wired up in createWindow via main/updater.js)
+let initAutoUpdater = null;
 try {
-  updater = require('electron-updater').autoUpdater;
+  initAutoUpdater = require('./updater').initAutoUpdater;
 } catch (e) {
-  try {
-    updater = require('electron').autoUpdater;
-  } catch (e2) {
-    updater = null;
-  }
+  console.warn('Auto-updater unavailable:', e.message);
 }
 
 function getOvpnFile() {
@@ -61,7 +59,9 @@ function createWindow() {
     width: 1280,
     height: 820,
     title: 'BLCKBOLT BROWSER – Developer Mode',
-    icon: path.join(__dirname, 'assets', 'icon.ico'),
+    icon: process.platform === 'win32'
+      ? path.join(__dirname, 'assets', 'icon.ico')
+      : path.join(__dirname, 'assets', 'icon.png'),
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -83,12 +83,25 @@ function createWindow() {
   }, 3000);
 
   // Auto-update check
-  if (updater && updater.checkForUpdatesAndNotify) {
-    try { updater.checkForUpdatesAndNotify(); } catch (e) { console.warn('Updater check failed', e.message); }
+  if (initAutoUpdater) {
+    try { initAutoUpdater(mainWindow); } catch (e) { console.warn('Updater check failed', e.message); }
   }
+
+  // Track webview contents for fingerprint/canvas protection injection
+  mainWindow.webContents.on('did-attach-webview', (event, webContents) => {
+    webviewContents.push(webContents);
+    webContents.on('destroyed', () => {
+      const idx = webviewContents.indexOf(webContents);
+      if (idx !== -1) webviewContents.splice(idx, 1);
+    });
+    if (canvasBlockingEnabled) {
+      webContents.once('dom-ready', () => injectIntoWebContents(webContents));
+    }
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    webviewContents = [];
   });
 
   // Header & SSL Interception
@@ -216,21 +229,17 @@ app.on('before-quit', () => {
   app.isQuitting = true;
 });
 
-// Wire up updater
-if (updater) {
-  updater.on && updater.on('update-downloaded', () => {
-    try { updater.quitAndInstall(); } catch (e) { console.error('quitAndInstall failed', e); }
-  });
-}
 
 // IPC Handlers: Tor
 ipcMain.handle('tor-enable', async (event, { profileId, socksHost = '127.0.0.1', socksPort = 9050 }) => {
   torManager.setProfileTor(profileId, { enabled: true, socksHost, socksPort });
+  await torManager.applyProxyToSession(session.defaultSession, profileId);
   return torManager.getProfile(profileId);
 });
 
 ipcMain.handle('tor-disable', async (event, { profileId }) => {
   torManager.setProfileTor(profileId, { enabled: false });
+  await torManager.applyProxyToSession(session.defaultSession, profileId);
   return torManager.getProfile(profileId);
 });
 
@@ -238,6 +247,19 @@ ipcMain.handle('tor-status', async (event, { profileId }) => {
   const p = torManager.getProfile(profileId);
   const reachable = await torManager.isSocksReachable(p.socksHost, p.socksPort);
   return { ...p, reachable };
+});
+
+ipcMain.handle('tor-test', async (event, { profileId, socksHost = '127.0.0.1', socksPort = 9050 } = {}) => {
+  // Verify the SOCKS endpoint responds and fetch the egress IP through it.
+  const reachable = await torChecker.isSocksReachable(socksHost, socksPort);
+  if (!reachable) return { reachable: false, ip: null };
+  try {
+    const ip = await torChecker.getPublicIP({ socksHost, socksPort });
+    return { reachable: true, ip };
+  } catch (e) {
+    console.warn('tor-test IP lookup failed:', e.message);
+    return { reachable: true, ip: null };
+  }
 });
 
 // IPC Handlers: VPN
@@ -304,13 +326,15 @@ ipcMain.handle('fingerprint-set', (event, index) => {
 
 // IPC Handlers: WebRTC Leak Detection & Prevention
 ipcMain.handle('webrtc-test', async () => {
-  // Test if WebRTC leaks local IPs
+  // Test if WebRTC leaks local IPs from the active webview (fallback: main window).
   // Returns: { protected: boolean, ipAddresses: string[] }
   try {
-    if (!mainWindow) return { protected: true, ipAddresses: [] };
-    
-    // Inject script to detect WebRTC IP leaks
-    const result = await mainWindow.webContents.executeJavaScript(`
+    const target = webviewContents.find(wc => !wc.isDestroyed()) || (mainWindow && mainWindow.webContents);
+    if (!target) return { protected: true, ipAddresses: [] };
+
+    // Run in the page context. Note the template literal: \\.  ->  \. in the
+    // executed source, so the regex correctly matches dotted IPv4 addresses.
+    const result = await target.executeJavaScript(`
       (async () => {
         const peerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
         if (!peerConnection) return { protected: true, ipAddresses: [] };
@@ -326,7 +350,7 @@ ipcMain.handle('webrtc-test', async () => {
           
           pc.onicecandidate = (ice) => {
             if (!ice || !ice.candidate) return;
-            const ipRegex = /([0-9]{1,3}(\\\\.[0-9]{1,3}){3})/;
+            const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3})/;
             const match = ice.candidate.candidate.match(ipRegex);
             if (match && !match[1].startsWith('127.')) {
               ips.push(match[1]);
@@ -382,18 +406,27 @@ ipcMain.handle('doh-status', () => {
 
 // IPC Handlers: Canvas Fingerprinting Blocker
 ipcMain.handle('canvas-blocker-enable', () => {
-  canvasBlocker.isEnabled = true;
+  canvasBlockingEnabled = true;
+  for (const wc of webviewContents) {
+    if (wc.isDestroyed()) continue;
+    wc.once('dom-ready', () => injectIntoWebContents(wc));
+    injectIntoWebContents(wc);
+  }
   return { enabled: true };
 });
 
 ipcMain.handle('canvas-blocker-disable', () => {
-  canvasBlocker.isEnabled = false;
+  canvasBlockingEnabled = false;
+  // Reload webviews so the injected prototype overrides are dropped.
+  for (const wc of webviewContents) {
+    if (!wc.isDestroyed()) wc.reload();
+  }
   return { enabled: false };
 });
 
 ipcMain.handle('canvas-blocker-status', () => {
   return {
-    enabled: canvasBlocker.isEnabled,
+    enabled: canvasBlockingEnabled,
     timestamp: new Date().toISOString()
   };
 });
@@ -414,3 +447,7 @@ ipcMain.handle('dpi-detector-status', () => {
 ipcMain.handle('dpi-detector-recommendations', () => {
   return dpiDetector.getRecommendations();
 });
+
+
+
+

@@ -11,6 +11,7 @@ class AdBlocker {
   constructor() {
     this.enabled = false;
     this.blockedCount = 0;
+    this._listener = null;
     this.blockPatterns = [
       '*://*.doubleclick.net/*',
       '*://*.google-analytics.com/*',
@@ -34,20 +35,24 @@ class AdBlocker {
     if (this.enabled) return;
     this.enabled = true;
 
-    ses.webRequest.onBeforeRequest({ urls: this.blockPatterns }, (details, callback) => {
+    this._listener = (details, callback) => {
       if (this.enabled) {
         this.blockedCount++;
         // Optionally notify renderer of blocked request
         return callback({ cancel: true });
       }
       callback({ cancel: false });
-    });
+    };
+    ses.webRequest.onBeforeRequest({ urls: this.blockPatterns }, this._listener);
     console.log('AdBlocker enabled');
   }
 
   disable(ses = session.defaultSession) {
     this.enabled = false;
-    ses.webRequest.onBeforeRequest({ urls: this.blockPatterns }, null);
+    // Remove the registered listener (null filter removes the adblocker's listener).
+    // The adblocker is the only onBeforeRequest consumer in this app.
+    ses.webRequest.onBeforeRequest(null);
+    this._listener = null;
     console.log('AdBlocker disabled');
   }
 
@@ -61,3 +66,4 @@ class AdBlocker {
 }
 
 module.exports = new AdBlocker();
+

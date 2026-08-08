@@ -89,6 +89,9 @@ class DPIDetector {
         });
       });
 
+      // options.timeout is ignored by Node's https module; enforce it ourselves.
+      req.setTimeout(5000, () => req.destroy(new Error('timeout')));
+
       req.on('error', (e) => {
         const latency = Date.now() - startTime;
         resolve({
@@ -260,3 +263,4 @@ class DPIDetector {
 }
 
 module.exports = new DPIDetector();
+

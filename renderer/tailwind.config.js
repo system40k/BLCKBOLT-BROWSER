@@ -1,23 +1,15 @@
-/** @type {import('tailwindcss').Config} */
+// Wrapper around the root token-based Tailwind config.
+// The theme (colors, spacing, radius, shadows from renderer/design-tokens.json)
+// lives in the root tailwind.config.js; this file only overrides the content
+// globs so classes used by the renderer app are picked up.
+const rootConfig = require('../tailwind.config.js');
+
 module.exports = {
+  ...rootConfig,
   content: [
-    "./pages/**/*.{js,ts,jsx,tsx}",
-    "./components/**/*.{js,ts,jsx,tsx}",
+    './pages/**/*.{js,ts,jsx,tsx}',
+    './components/**/*.{js,ts,jsx,tsx}',
+    './app/**/*.{js,ts,jsx,tsx}',
   ],
-  theme: {
-    extend: {
-      colors: {
-        bgDark: '#0a0a0b',
-        gray: {
-          850: '#1a1a1c',
-          900: '#121214',
-          950: '#050505',
-        }
-      },
-      fontFamily: {
-        orbitron: ['Orbitron', 'sans-serif'],
-      },
-    },
-  },
-  plugins: [],
-}
+};
+

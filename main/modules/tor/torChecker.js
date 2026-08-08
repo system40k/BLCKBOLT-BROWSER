@@ -1,6 +1,7 @@
-// src/modules/tor/torChecker.js
+// main/modules/tor/torChecker.js
 const net = require('net');
 const https = require('https');
+const { SocksProxyAgent } = require('socks-proxy-agent');
 
 async function isSocksReachable(socksHost, socksPort, timeout = 2000) {
   return new Promise((resolve) => {
@@ -14,27 +15,28 @@ async function isSocksReachable(socksHost, socksPort, timeout = 2000) {
   });
 }
 
-async function getPublicIP(session) {
-  // Use Electron session to make proxied request
+async function getPublicIP({ socksHost, socksPort, timeout = 8000 }) {
+  // Fetch the public IP through the Tor SOCKS proxy.
   return new Promise((resolve, reject) => {
-    session.resolveProxy('https://api.ipify.org', (proxy) => {
-      const agent = proxy.includes('socks5') ? require('socks-proxy-agent')(proxy) : undefined;
-      https.get({
-        hostname: 'api.ipify.org',
-        path: '/?format=json',
-        agent,
-      }, (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-          try {
-            const ip = JSON.parse(data).ip;
-            resolve(ip);
-          } catch (e) { reject(e); }
-        });
-      }).on('error', reject);
+    const agent = new SocksProxyAgent(`socks5://${socksHost}:${socksPort}`);
+    const req = https.get({
+      hostname: 'api.ipify.org',
+      path: '/?format=json',
+      agent,
+    }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const ip = JSON.parse(data).ip;
+          resolve(ip);
+        } catch (e) { reject(e); }
+      });
     });
+    req.setTimeout(timeout, () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
   });
 }
 
 module.exports = { isSocksReachable, getPublicIP };
+

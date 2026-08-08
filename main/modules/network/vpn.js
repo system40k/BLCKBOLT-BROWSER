@@ -16,6 +16,7 @@ class VpnManager extends EventEmitter {
 
   connectWithFile(ovpnPath, mode = 'proxy', proxyPort = 1080) {
     if (!fs.existsSync(ovpnPath)) throw new Error('ovpn missing');
+    if (this.proc) return; // already connected - guard double-connect
     this.mode = mode;
     if (mode === 'system') {
       this._startSystemOpenVPN(ovpnPath);
@@ -26,7 +27,7 @@ class VpnManager extends EventEmitter {
   }
 
   _startSystemOpenVPN(ovpnPath) {
-    this.proc = spawn('openvpn', ['--config', ovpnPath]);
+    this.proc = spawn('openvpn', ['--config', ovpnPath], { detached: true });
     this._wireProcess();
   }
 
@@ -34,27 +35,44 @@ class VpnManager extends EventEmitter {
     // Example pattern: run openvpn --config file --dev tunX,
     // then run dante/socks server bound to tun or local mapping.
     // For quick dev: assume user runs container that exposes socks:1080
-    // We'll attempt to run a helper script that sets up redsocks/dante
-    this.proc = spawn('bash', ['-c', `openvpn --config ${ovpnPath}`], { detached: true });
+    // Spawn openvpn directly with the config as an argument (no shell
+    // interpolation, so the path cannot be treated as extra flags/commands).
+    this.proc = spawn('openvpn', ['--config', ovpnPath], { detached: true });
     this._wireProcess();
     // Note: You must instruct user to run a tiny container combining openvpn + dante for browser-only mode.
   }
 
   _wireProcess() {
     if (!this.proc) return;
-    this.proc.stdout.on('data', d => this.emit('log', d.toString()));
-    this.proc.stderr.on('data', d => this.emit('log', d.toString()));
-    this.proc.on('exit', (code, sig) => {
-      this.emit('exit', { code, sig });
-      this.proc = null;
+    let connectedEmitted = false;
+    const proc = this.proc;
+    proc.stdout.on('data', d => this.emit('log', d.toString()));
+    proc.stderr.on('data', d => this.emit('log', d.toString()));
+    proc.on('error', (err) => {
+      this.emit('log', `openvpn error: ${err.message}`);
+      this.emit('error', err);
+      if (this.proc === proc) this.proc = null;
     });
-    this.emit('connected');
+    proc.on('exit', (code, sig) => {
+      this.emit('exit', { code, sig });
+      if (this.proc === proc) this.proc = null;
+    });
+    // Only report 'connected' once the tunnel is actually up, not on spawn.
+    const onData = (d) => {
+      if (!connectedEmitted && /Initialization Sequence Completed/.test(d.toString())) {
+        connectedEmitted = true;
+        this.emit('connected');
+      }
+    };
+    proc.stdout.on('data', onData);
+    proc.stderr.on('data', onData);
   }
 
   disconnect() {
     if (this.proc) {
-      try { process.kill(-this.proc.pid); } catch(e) { this.proc.kill(); }
+      const proc = this.proc;
       this.proc = null;
+      try { process.kill(-proc.pid); } catch (e) { try { proc.kill(); } catch (e2) {} }
       this.emit('disconnected');
     }
   }
@@ -65,3 +83,4 @@ class VpnManager extends EventEmitter {
 }
 
 module.exports = new VpnManager();
+
