@@ -30,7 +30,7 @@ const VpnToggle = () => {
           <p className="text-xs text-slate-500">Secure your connection</p>
         </div>
         <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${enabled ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-800 text-slate-400'}`}>
-          {enabled ? 'Connected' : 'Offline'}
+          {enabled ? (status === 'connected' ? 'Connected' : 'Connecting…') : 'Offline'}
         </span>
       </div>
       <button
@@ -51,3 +51,4 @@ const VpnToggle = () => {
 };
 
 export default VpnToggle;
+

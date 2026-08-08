@@ -13,6 +13,7 @@ const fingerprint = require('./modules/fingerprint');
 const dohDot = require('./modules/network/doh-dot');
 const { injectIntoWebContents } = require('./modules/fingerprint/canvas-inject');
 const dpiDetector = require('./modules/network/dpi-detector');
+const settings = require('./modules/settings');
 
 let mainWindow = null;
 let splash = null;
@@ -76,6 +77,8 @@ function createWindow() {
   const startUrl = process.env.ELECTRON_START_URL || `file://${path.join(__dirname, '..', 'renderer', 'out', 'index.html')}`;
   mainWindow.loadURL(startUrl);
 
+  if (isDev) mainWindow.webContents.openDevTools({ mode: 'detach' });
+
   // Transition from splash to main
   setTimeout(() => {
     if (splash && !splash.isDestroyed()) splash.close();
@@ -117,13 +120,18 @@ function createWindow() {
     }
   });
 
+  // Single onBeforeSendHeaders listener: privacy filters + header inspector.
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+    const requestHeaders = settings.decorateRequestHeaders(details, details.requestHeaders);
     if (mainWindow && details.resourceType === 'mainFrame') {
-      mainWindow.webContents.send('header-data', {
-        requestHeaders: details.requestHeaders
-      });
+      mainWindow.webContents.send('header-data', { requestHeaders });
     }
-    callback({ cancel: false });
+    callback({ requestHeaders });
+  });
+
+  // Strip Set-Cookie on third-party responses when cookie blocking is on.
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({ responseHeaders: settings.sanitizeResponseHeaders(details, details.responseHeaders) });
   });
 
   // SSL Info via certificate-error (for verification) and potentially other means
@@ -200,6 +208,29 @@ app.on('ready', () => {
   createWindow();
   createTray();
   try { app.setAsDefaultProtocolClient('blckbolt'); } catch (e) { }
+
+  // Apply persisted privacy settings at startup.
+  const s = settings.get();
+  if (s.adblockEnabled) adblocker.enable(session.defaultSession);
+  if (s.canvasBlocking) {
+    canvasBlockingEnabled = true;
+    for (const wc of webviewContents) {
+      if (wc.isDestroyed()) continue;
+      wc.once('dom-ready', () => injectIntoWebContents(wc));
+      injectIntoWebContents(wc);
+    }
+  }
+  if (s.fingerprintRandomizeOnStart) {
+    fingerprint.randomize();
+    fingerprint.applyToSession(session.defaultSession);
+  }
+});
+
+app.on('will-quit', () => {
+  const s = settings.get();
+  if (s.clearCacheOnExit) {
+    try { session.defaultSession.clearCache(); } catch (e) { }
+  }
 });
 
 app.on('open-url', (event, url) => {
@@ -249,7 +280,7 @@ ipcMain.handle('tor-status', async (event, { profileId }) => {
   return { ...p, reachable };
 });
 
-ipcMain.handle('tor-test', async (event, { profileId, socksHost = '127.0.0.1', socksPort = 9050 } = {}) => {
+ipcMain.handle('tor-test', async (event, { socksHost = '127.0.0.1', socksPort = 9050 } = {}) => {
   // Verify the SOCKS endpoint responds and fetch the egress IP through it.
   const reachable = await torChecker.isSocksReachable(socksHost, socksPort);
   if (!reachable) return { reachable: false, ip: null };
@@ -277,7 +308,7 @@ ipcMain.on('vpn-connect', (event, opts = {}) => {
   }
 });
 
-ipcMain.on('vpn-disconnect', (event) => {
+ipcMain.on('vpn-disconnect', () => {
   vpn.disconnect();
   proxyAgent.clearProxy(session.defaultSession);
 });
@@ -350,7 +381,7 @@ ipcMain.handle('webrtc-test', async () => {
           
           pc.onicecandidate = (ice) => {
             if (!ice || !ice.candidate) return;
-            const ipRegex = /([0-9]{1,3}(\.[0-9]{1,3}){3})/;
+            const ipRegex = /([0-9]{1,3}(\\.[0-9]{1,3}){3})/;
             const match = ice.candidate.candidate.match(ipRegex);
             if (match && !match[1].startsWith('127.')) {
               ips.push(match[1]);
@@ -404,23 +435,31 @@ ipcMain.handle('doh-status', () => {
   return dohDot.getStatus();
 });
 
-// IPC Handlers: Canvas Fingerprinting Blocker
-ipcMain.handle('canvas-blocker-enable', () => {
+function enableCanvasBlocking() {
   canvasBlockingEnabled = true;
   for (const wc of webviewContents) {
     if (wc.isDestroyed()) continue;
     wc.once('dom-ready', () => injectIntoWebContents(wc));
     injectIntoWebContents(wc);
   }
-  return { enabled: true };
-});
+}
 
-ipcMain.handle('canvas-blocker-disable', () => {
+function disableCanvasBlocking() {
   canvasBlockingEnabled = false;
   // Reload webviews so the injected prototype overrides are dropped.
   for (const wc of webviewContents) {
     if (!wc.isDestroyed()) wc.reload();
   }
+}
+
+// IPC Handlers: Canvas Fingerprinting Blocker
+ipcMain.handle('canvas-blocker-enable', () => {
+  enableCanvasBlocking();
+  return { enabled: true };
+});
+
+ipcMain.handle('canvas-blocker-disable', () => {
+  disableCanvasBlocking();
   return { enabled: false };
 });
 
@@ -447,6 +486,36 @@ ipcMain.handle('dpi-detector-status', () => {
 ipcMain.handle('dpi-detector-recommendations', () => {
   return dpiDetector.getRecommendations();
 });
+
+// IPC Handlers: Persistent Settings
+ipcMain.handle('settings-get', () => {
+  return settings.get();
+});
+
+ipcMain.handle('settings-set', (event, patch) => {
+  patch = patch || {};
+  const next = settings.set(patch);
+
+  // Apply side effects immediately.
+  if (typeof patch.adblockEnabled === 'boolean') {
+    if (patch.adblockEnabled) adblocker.enable(session.defaultSession);
+    else adblocker.disable(session.defaultSession);
+  }
+  if (typeof patch.canvasBlocking === 'boolean') {
+    if (patch.canvasBlocking && !canvasBlockingEnabled) {
+      enableCanvasBlocking();
+    } else if (!patch.canvasBlocking && canvasBlockingEnabled) {
+      disableCanvasBlocking();
+    }
+  }
+  if (mainWindow) mainWindow.webContents.send('settings-updated', next);
+  return next;
+});
+
+
+
+
+
 
 
 

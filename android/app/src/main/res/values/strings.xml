@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BLCKBOLT Browser</string>
+    <string name="url_hint">Search or enter address</string>
+    <string name="action_back">Go back</string>
+    <string name="action_forward">Go forward</string>
+    <string name="action_reload">Reload</string>
+    <string name="action_home">Home</string>
+    <string name="action_share">Share link</string>
+    <string name="action_clear_data">Clear browsing data</string>
+    <string name="action_about">About</string>
+    <string name="download_started">Download started</string>
+    <string name="data_cleared">Browsing data cleared</string>
+    <string name="ssl_blocked">Connection blocked (certificate error)</string>
+    <string name="about_title">About BLCKBOLT Browser</string>
+    <string name="about_message">BLCKBOLT Browser 1.0.0\n\nPrivacy-first browser:\n• HTTPS-first connections\n• Third-party cookies blocked\n• Geolocation and autofill disabled\n• Safe Browsing enabled</string>
+</resources>
+

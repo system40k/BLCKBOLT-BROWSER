@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="white_50">#80FFFFFF</color>
+    <color name="surface">#FF1A1A1A</color>
+    <color name="accent">#FFFFD600</color>
+    <color name="bolt_foreground">#FFFFD600</color>
+    <color name="ic_launcher_background">#FF222222</color>
+    <color name="url_bar_bg">#FF333333</color>
+</resources>
+

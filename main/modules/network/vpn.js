@@ -31,7 +31,7 @@ class VpnManager extends EventEmitter {
     this._wireProcess();
   }
 
-  _startOpenVPNProxy(ovpnPath, proxyPort) {
+  _startOpenVPNProxy(ovpnPath, _proxyPort) {
     // Example pattern: run openvpn --config file --dev tunX,
     // then run dante/socks server bound to tun or local mapping.
     // For quick dev: assume user runs container that exposes socks:1080
@@ -83,4 +83,5 @@ class VpnManager extends EventEmitter {
 }
 
 module.exports = new VpnManager();
+
 

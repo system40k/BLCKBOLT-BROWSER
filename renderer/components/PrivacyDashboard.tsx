@@ -28,7 +28,6 @@ const mockStats: PrivacyStats = {
 export default function PrivacyDashboard() {
   const [stats, setStats] = useState<PrivacyStats>(mockStats)
   const [showLog, setShowLog] = useState(false)
-  const [webrtcTesting, setWebrtcTesting] = useState(false)
   const [logs, setLogs] = useState<{ type: string; message: string; timestamp: Date }[]>([
     { type: 'adblock', message: 'Blocked ad.doubleclick.net', timestamp: new Date(Date.now() - 5000) },
     { type: 'adblock', message: 'Blocked tracking pixel from google-analytics.com', timestamp: new Date(Date.now() - 15000) },
@@ -40,7 +39,6 @@ export default function PrivacyDashboard() {
     // Test WebRTC protection on mount
     const testWebRTC = async () => {
       if (typeof window !== 'undefined' && (window as any).blckboltAPI) {
-        setWebrtcTesting(true)
         try {
           const result = await (window as any).blckboltAPI.invoke('webrtc-test')
           setStats((prev) => ({ ...prev, webrtcProtected: result.protected }))
@@ -55,8 +53,6 @@ export default function PrivacyDashboard() {
         } catch (e) {
           console.error('WebRTC test failed:', e)
           setStats((prev) => ({ ...prev, webrtcProtected: true }))
-        } finally {
-          setWebrtcTesting(false)
         }
       }
     }
@@ -229,3 +225,6 @@ export default function PrivacyDashboard() {
     </div>
   )
 }
+
+
+

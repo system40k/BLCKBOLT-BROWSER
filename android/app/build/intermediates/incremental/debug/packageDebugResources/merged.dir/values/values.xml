@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="accent">#FFFFD600</color>
+    <color name="black">#FF000000</color>
+    <color name="bolt_foreground">#FFFFD600</color>
+    <color name="ic_launcher_background">#FF222222</color>
+    <color name="surface">#FF1A1A1A</color>
+    <color name="url_bar_bg">#FF333333</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="white_50">#80FFFFFF</color>
+    <string name="about_message">BLCKBOLT Browser 1.0.0\n\nPrivacy-first browser:\n• HTTPS-first connections\n• Third-party cookies blocked\n• Geolocation and autofill disabled\n• Safe Browsing enabled</string>
+    <string name="about_title">About BLCKBOLT Browser</string>
+    <string name="action_about">About</string>
+    <string name="action_back">Go back</string>
+    <string name="action_clear_data">Clear browsing data</string>
+    <string name="action_forward">Go forward</string>
+    <string name="action_home">Home</string>
+    <string name="action_reload">Reload</string>
+    <string name="action_share">Share link</string>
+    <string name="app_name">BLCKBOLT Browser</string>
+    <string name="data_cleared">Browsing data cleared</string>
+    <string name="download_started">Download started</string>
+    <string name="ssl_blocked">Connection blocked (certificate error)</string>
+    <string name="url_hint">Search or enter address</string>
+    <style name="Theme.BLCKBOLT" parent="Theme.MaterialComponents.NoActionBar.Dark">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">@color/black</item>
+        <item name="colorSecondary">@color/accent</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="android:statusBarColor">@color/black</item>
+        <item name="android:navigationBarColor">@color/black</item>
+        <item name="android:windowBackground">@color/surface</item>
+    </style>
+</resources>

@@ -69,7 +69,7 @@ contextBridge.exposeInMainWorld('blckboltAPI', {
     }
   },
   on: (channel, func) => {
-    const validChannels = ['vpn-status', 'vpn-log', 'protocol-url', 'navigate', 'header-data', 'ssl-data', 'update-available', 'doh-updated', 'dpi-results', 'stats-update', 'privacy-log'];
+    const validChannels = ['vpn-status', 'vpn-log', 'protocol-url', 'navigate', 'header-data', 'ssl-data', 'update-available', 'doh-updated', 'dpi-results', 'stats-update', 'privacy-log', 'settings-updated'];
     if (validChannels.includes(channel)) {
       ipcRenderer.on(channel, (event, ...args) => func(...args));
     }
@@ -83,11 +83,13 @@ contextBridge.exposeInMainWorld('blckboltAPI', {
       'webrtc-test', 'webrtc-status',
       'doh-get-resolvers', 'doh-get-current', 'doh-set-resolver', 'doh-test-resolver', 'doh-status',
       'canvas-blocker-enable', 'canvas-blocker-disable', 'canvas-blocker-status',
-      'dpi-detector-start', 'dpi-detector-status', 'dpi-detector-recommendations'
+      'dpi-detector-start', 'dpi-detector-status', 'dpi-detector-recommendations',
+      'settings-get', 'settings-set'
     ];
     if (validInvoke.includes(channel)) {
       return ipcRenderer.invoke(channel, data);
     }
   }
 });
+
 

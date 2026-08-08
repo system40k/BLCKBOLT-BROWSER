@@ -1,7 +1,6 @@
 // DPI (Deep Packet Inspection) Detection Module
 // Tests for traffic analysis and censorship interference
 
-const net = require('net');
 const dns = require('dns').promises;
 const https = require('https');
 
@@ -29,7 +28,7 @@ class DPIDetector {
   async testDNSResolution(domain) {
     try {
       const startTime = Date.now();
-      const results = await dns.resolve4(domain);
+      await dns.resolve4(domain);
       const latency = Date.now() - startTime;
 
       if (latency > 2000) {
