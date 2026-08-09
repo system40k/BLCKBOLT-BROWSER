@@ -23,7 +23,7 @@
   "license": "MIT",
   "dependencies": {
     "electron-updater": "6.8.9",
-    "framer-motion": "11.2.2",
+    "framer-motion": "12.23.24",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -69,29 +69,10 @@
       "license": "LICENSE.txt",
       "artifactName": "BLCKBOLT-Browser-Setup-${version}.exe"
     },
-    "win": {
-      "target": ["nsis", "portable", "zip"],
-      "icon": "main/assets/icon.ico",
-      "signingHashAlgorithms": ["sha256"]
-    },
-    "linux": {
-      "target": ["AppImage", "deb"],
-      "category": "Development",
-      "maintainer": "hybeprojects <contact@hybe.pro>",
-      "icon": "main/assets/icon.png",
-      "artifactName": "BLCKBOLT-Browser-${version}-${arch}.${ext}"
-    },
-    "deb": {
-      "artifactName": "BLCKBOLT-Browser-${version}-${arch}.deb",
-      "depends": ["libappindicator1", "libnotify-bin"]
-    },
-    "protocols": [{"name":"BLCKBOLT Protocol","schemes":["blckbolt"],"role":"Viewer"}],
-    "mac": {
-      "category": "public.app-category.developer-tools",
-      "icon": "main/assets/icon.icns",
-      "target": ["dmg", "zip"],
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false
-    }
+    "win": {"target":["nsis","portable","zip"],"icon":"main/assets/icon.ico","signingHashAlgorithms":["sha256"]},
+    "linux": {"target":["AppImage","deb"],"category":"Development","maintainer":"hybeprojects <contact@hybe.pro>","icon":"main/assets/icon.png","artifactName":"BLCKBOLT-Browser-${version}-${arch}.${ext}"},
+    "deb":{"artifactName":"BLCKBOLT-Browser-${version}-${arch}.deb","depends":["libappindicator1","libnotify-bin"]},
+    "protocols":[{"name":"BLCKBOLT Protocol","schemes":["blckbolt"],"role":"Viewer"}],
+    "mac":{"category":"public.app-category.developer-tools","icon":"main/assets/icon.icns","target":["dmg","zip"],"hardenedRuntime":true,"gatekeeperAssess":false}
   }
 }
