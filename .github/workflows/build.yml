@@ -30,8 +30,10 @@ jobs:
         with:
           node-version: '24'
           cache: npm
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install dependencies from package.json
+        run: npm install --package-lock=false --no-audit --no-fund
+      - name: Generate resolved lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Lint
         run: npm run lint
       - name: Typecheck
@@ -49,6 +51,13 @@ jobs:
         with:
           name: blckbolt-build-${{ matrix.os }}
           path: dist/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v7
+        with:
+          name: blckbolt-lock-${{ matrix.os }}
+          path: package-lock.json
           if-no-files-found: error
           retention-days: 14
       - name: Upload security audit report
