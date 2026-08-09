@@ -24,6 +24,8 @@
   "dependencies": {
     "electron-updater": "6.8.9",
     "framer-motion": "12.23.24",
+    "motion-dom": "12.23.24",
+    "motion-utils": "12.23.24",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -45,7 +47,7 @@
     "postcss": "8.5.25",
     "typescript": "5.5.4"
   },
-  "overrides": {"ip-address":"10.3.1","postcss":"8.5.25"},
+  "overrides": {"ip-address":"10.3.1","postcss":"8.5.25","motion-dom":"12.23.24","motion-utils":"12.23.24"},
   "build": {
     "appId": "com.blckbolt.browser",
     "productName": "BLCKBOLT Browser",
