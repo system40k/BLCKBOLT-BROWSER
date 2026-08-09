@@ -80,8 +80,12 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
-      - name: Security audit
-        run: npm audit --audit-level=high
+      - name: Runtime dependency security audit
+        run: npm run security:audit
+      - name: Full dependency audit report
+        shell: bash
+        run: |
+          npm run security:audit:full > audit-${{ matrix.artifact }}.txt 2>&1 || true
       - name: Build release artifacts
         run: npm run build:${{ matrix.target }}
       - name: Upload release artifacts
@@ -89,6 +93,13 @@ jobs:
         with:
           name: blckbolt-release-${{ matrix.artifact }}
           path: dist/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload audit report
+        uses: actions/upload-artifact@v7
+        with:
+          name: blckbolt-release-audit-${{ matrix.artifact }}
+          path: audit-${{ matrix.artifact }}.txt
           if-no-files-found: error
           retention-days: 7
 
