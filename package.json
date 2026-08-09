@@ -13,7 +13,7 @@
     "build:linux": "npm run build:renderer && electron-builder --linux appimage deb -p never",
     "build:mac": "npm run build:renderer && electron-builder --mac dmg zip -p never",
     "build:all": "npm run build:renderer && electron-builder -mwl -p never",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint main renderer",
+    "lint": "eslint main renderer",
     "typecheck": "cd renderer && tsc --noEmit",
     "security:audit": "npm audit --omit=dev --audit-level=high",
     "security:audit:full": "npm audit --audit-level=high",
