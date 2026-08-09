@@ -1,0 +1,35 @@
+name: Enterprise Security Gate
+
+on:
+  pull_request:
+  push:
+    branches: [security-gate/enterprise-grade]
+
+permissions:
+  contents: read
+
+jobs:
+  static-security:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Setup Node
+        uses: actions/setup-node@1e60f620b9541dca3a58c2b0f5a7b7d9c7d4a9b # v4.4.0
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Dependency audit
+        run: npm audit --audit-level=critical
+      - name: Navigation security tests
+        run: npx jest tests/security/navigation-policy.test.js --runInBand
+      - name: IPC security tests
+        run: npx jest tests/security/ipc-policy.test.js --runInBand
+      - name: Privacy semantics tests
+        run: npx jest tests/security/privacy-result.test.js --runInBand
