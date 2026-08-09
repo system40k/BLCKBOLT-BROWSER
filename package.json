@@ -5,7 +5,7 @@
   "main": "main/bootstrap.js",
   "scripts": {
     "dev": "next dev renderer",
-    "build:renderer": "next build renderer",
+    "build:renderer": "next build renderer --webpack",
     "start": "electron .",
     "build": "npm run build:renderer && electron-builder",
     "build:prod": "npm run build:renderer && electron-builder -p never",
@@ -45,10 +45,7 @@
     "postcss": "8.5.25",
     "typescript": "5.5.4"
   },
-  "overrides": {
-    "ip-address": "10.3.1",
-    "postcss": "8.5.25"
-  },
+  "overrides": {"ip-address":"10.3.1","postcss":"8.5.25"},
   "build": {
     "appId": "com.blckbolt.browser",
     "productName": "BLCKBOLT Browser",
@@ -56,19 +53,7 @@
     "files": ["main/**/*","renderer/out/**/*","package.json","!dist","!**/*.map"],
     "extraMetadata": {"main":"main/bootstrap.js"},
     "publish": [{"provider":"github","owner":"system40k","repo":"BLCKBOLT-BROWSER"}],
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "BLCKBOLT Browser",
-      "installerIcon": "main/assets/icon.ico",
-      "uninstallerIcon": "main/assets/icon.ico",
-      "installerHeaderIcon": "main/assets/icon.ico",
-      "displayLanguageSelector": false,
-      "license": "LICENSE.txt",
-      "artifactName": "BLCKBOLT-Browser-Setup-${version}.exe"
-    },
+    "nsis": {"oneClick":false,"allowToChangeInstallationDirectory":true,"createDesktopShortcut":true,"createStartMenuShortcut":true,"shortcutName":"BLCKBOLT Browser","installerIcon":"main/assets/icon.ico","uninstallerIcon":"main/assets/icon.ico","installerHeaderIcon":"main/assets/icon.ico","displayLanguageSelector":false,"license":"LICENSE.txt","artifactName":"BLCKBOLT-Browser-Setup-${version}.exe"},
     "win": {"target":["nsis","portable","zip"],"icon":"main/assets/icon.ico","signingHashAlgorithms":["sha256"]},
     "linux": {"target":["AppImage","deb"],"category":"Development","maintainer":"hybeprojects <contact@hybe.pro>","icon":"main/assets/icon.png","artifactName":"BLCKBOLT-Browser-${version}-${arch}.${ext}"},
     "deb":{"artifactName":"BLCKBOLT-Browser-${version}-${arch}.deb","depends":["libappindicator1","libnotify-bin"]},
