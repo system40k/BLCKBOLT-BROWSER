@@ -1,0 +1,137 @@
+name: Release BLCKBOLT-BROWSER
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+            artifact: windows
+          - os: macos-latest
+            target: mac
+            artifact: macos
+          - os: ubuntu-latest
+            target: linux
+            artifact: linux
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify release signing configuration
+        shell: bash
+        env:
+          WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          MAC_CERT: ${{ secrets.MAC_CERT_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ "${{ matrix.target }}" = "win" ]; then
+            test -n "$WINDOWS_CERT" || { echo "Missing WINDOWS_CERT_BASE64"; exit 1; }
+            test -n "$WINDOWS_CERT_PASSWORD" || { echo "Missing WINDOWS_CERT_PASSWORD"; exit 1; }
+            printf '%s' "$WINDOWS_CERT" | base64 --decode > "$RUNNER_TEMP/windows-cert.p12"
+            echo "CSC_LINK=$RUNNER_TEMP/windows-cert.p12" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$WINDOWS_CERT_PASSWORD" >> "$GITHUB_ENV"
+          fi
+          if [ "${{ matrix.target }}" = "mac" ]; then
+            test -n "$MAC_CERT" || { echo "Missing MAC_CERT_BASE64"; exit 1; }
+            test -n "$MAC_CERT_PASSWORD" || { echo "Missing MAC_CERT_PASSWORD"; exit 1; }
+            test -n "$APPLE_ID" || { echo "Missing APPLE_ID"; exit 1; }
+            test -n "$APPLE_PASSWORD" || { echo "Missing APPLE_APP_SPECIFIC_PASSWORD"; exit 1; }
+            test -n "$APPLE_TEAM_ID" || { echo "Missing APPLE_TEAM_ID"; exit 1; }
+            printf '%s' "$MAC_CERT" | base64 --decode > "$RUNNER_TEMP/mac-cert.p12"
+            echo "CSC_LINK=$RUNNER_TEMP/mac-cert.p12" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$MAC_CERT_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          fi
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Security audit
+        run: npm audit --audit-level=high
+
+      - name: Build release artifacts
+        run: npm run build:${{ matrix.target }}
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: blckbolt-release-${{ matrix.artifact }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: blckbolt-release-windows
+          path: release/windows
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: blckbolt-release-macos
+          path: release/macos
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v7
+        with:
+          name: blckbolt-release-linux
+          path: release/linux
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" release/**/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "BLCKBOLT Browser $RELEASE_TAG" \
+            --generate-notes

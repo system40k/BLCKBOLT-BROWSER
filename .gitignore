@@ -9,3 +9,9 @@ renderer/dist/
 *.log
 verification/
 *.tsbuildinfo
+android/.gradle/
+android/**/build/
+.gradle/
+*.iml
+.DS_Store
+Thumbs.db

@@ -1,8 +1,8 @@
 {
   "name": "blckbolt-browser",
-  "version": "1.0.0",
-  "description": "BLCKBOLT-BROWSER: Advanced Developer Privacy Browser (Electron)",
-  "main": "main/main.js",
+  "version": "1.1.0",
+  "description": "BLCKBOLT-BROWSER: Enterprise Privacy Browser (Electron)",
+  "main": "main/bootstrap.js",
   "scripts": {
     "dev": "next dev renderer",
     "build:renderer": "next build renderer",
@@ -14,17 +14,16 @@
     "build:mac": "npm run build:renderer && electron-builder --mac dmg zip -p never",
     "build:all": "npm run build:renderer && electron-builder -mwl -p never",
     "lint": "eslint main renderer",
-    "typecheck": "cd renderer && tsc --noEmit"
+    "typecheck": "cd renderer && tsc --noEmit",
+    "security:audit": "npm audit --audit-level=high",
+    "verify": "npm run lint && npm run typecheck && npm run security:audit"
   },
-  "author": {
-    "name": "hybeprojects",
-    "email": "contact@hybe.pro"
-  },
+  "author": {"name":"hybeprojects","email":"contact@hybe.pro"},
   "license": "MIT",
   "dependencies": {
-    "electron-updater": "^6.1.7",
+    "electron-updater": "^6.8.9",
     "framer-motion": "^11.2.2",
-    "next": "14.2.3",
+    "next": "14.2.35",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "socks-proxy-agent": "^8.0.3",
@@ -37,8 +36,8 @@
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "autoprefixer": "^10.4.19",
-    "electron": "^29.4.6",
-    "electron-builder": "^24.13.3",
+    "electron": "43.2.0",
+    "electron-builder": "26.15.3",
     "eslint": "^8.56.0",
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^4.6.2",
@@ -48,26 +47,10 @@
   "build": {
     "appId": "com.blckbolt.browser",
     "productName": "BLCKBOLT Browser",
-    "directories": {
-      "output": "dist",
-      "buildResources": "main/assets"
-    },
-    "files": [
-      "main/**/*",
-      "renderer/out/**/*",
-      "package.json",
-      "!dist"
-    ],
-    "extraMetadata": {
-      "main": "main/main.js"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "hybeprojects",
-        "repo": "BLCKBOLT-BROWSER"
-      }
-    ],
+    "directories": {"output":"dist","buildResources":"main/assets"},
+    "files": ["main/**/*","renderer/out/**/*","package.json","!dist","!**/*.map"],
+    "extraMetadata": {"main":"main/bootstrap.js"},
+    "publish": [{"provider":"github","owner":"system40k","repo":"BLCKBOLT-BROWSER"}],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -82,79 +65,19 @@
       "artifactName": "BLCKBOLT-Browser-Setup-${version}.exe"
     },
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "main/assets/icon.ico",
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
-      "certificateFile": null,
-      "certificatePassword": null
+      "target":[{"target":"nsis","arch":["x64"]},{"target":"portable","arch":["x64"]},{"target":"zip","arch":["x64"]}],
+      "icon":"main/assets/icon.ico",
+      "signingHashAlgorithms":["sha256"]
     },
     "linux": {
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "category": "Development",
-      "maintainer": "hybeprojects <contact@hybe.pro>",
-      "icon": "main/assets/icon.png",
-      "artifactName": "BLCKBOLT-Browser-${version}-${arch}.${ext}"
+      "target":[{"target":"AppImage","arch":["x64","arm64"]},{"target":"deb","arch":["x64","arm64"]}],
+      "category":"Development",
+      "maintainer":"hybeprojects <contact@hybe.pro>",
+      "icon":"main/assets/icon.png",
+      "artifactName":"BLCKBOLT-Browser-${version}-${arch}.${ext}"
     },
-    "deb": {
-      "artifactName": "BLCKBOLT-Browser-${version}-${arch}.deb",
-      "depends": [
-        "libappindicator1",
-        "libnotify-bin"
-      ]
-    },
-    "protocols": [
-      {
-        "name": "BLCKBOLT Protocol",
-        "schemes": [
-          "blckbolt"
-        ],
-        "role": "Viewer"
-      }
-    ],
-    "mac": {
-      "category": "public.app-category.developer-tools",
-      "icon": "main/assets/icon.icns",
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "hardenedRuntime": true
-    }
+    "deb":{"artifactName":"BLCKBOLT-Browser-${version}-${arch}.deb","depends":["libappindicator1","libnotify-bin"]},
+    "protocols":[{"name":"BLCKBOLT Protocol","schemes":["blckbolt"],"role":"Viewer"}],
+    "mac":{"category":"public.app-category.developer-tools","icon":"main/assets/icon.icns","target":["dmg","zip"],"hardenedRuntime":true,"gatekeeperAssess":false}
   }
 }
