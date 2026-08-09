@@ -14,7 +14,8 @@
     "build:mac": "npm run build:renderer && electron-builder --mac dmg zip -p never",
     "build:all": "npm run build:renderer && electron-builder -mwl -p never",
     "lint": "eslint main renderer",
-    "typecheck": "cd renderer && tsc --noEmit"
+    "typecheck": "cd renderer && tsc --noEmit",
+    "security:test": "node --test test/security/**/*.test.js"
   },
   "author": {
     "name": "hybeprojects",
@@ -48,26 +49,10 @@
   "build": {
     "appId": "com.blckbolt.browser",
     "productName": "BLCKBOLT Browser",
-    "directories": {
-      "output": "dist",
-      "buildResources": "main/assets"
-    },
-    "files": [
-      "main/**/*",
-      "renderer/out/**/*",
-      "package.json",
-      "!dist"
-    ],
-    "extraMetadata": {
-      "main": "main/main.js"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "hybeprojects",
-        "repo": "BLCKBOLT-BROWSER"
-      }
-    ],
+    "directories": { "output": "dist", "buildResources": "main/assets" },
+    "files": ["main/**/*", "renderer/out/**/*", "package.json", "!dist"],
+    "extraMetadata": { "main": "main/main.js" },
+    "publish": [{ "provider": "github", "owner": "hybeprojects", "repo": "BLCKBOLT-BROWSER" }],
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
@@ -82,50 +67,14 @@
       "artifactName": "BLCKBOLT-Browser-Setup-${version}.exe"
     },
     "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
+      "target": [{ "target": "nsis", "arch": ["x64"] }, { "target": "portable", "arch": ["x64"] }, { "target": "zip", "arch": ["x64"] }],
       "icon": "main/assets/icon.ico",
-      "signingHashAlgorithms": [
-        "sha256"
-      ],
+      "signingHashAlgorithms": ["sha256"],
       "certificateFile": null,
       "certificatePassword": null
     },
     "linux": {
-      "target": [
-        {
-          "target": "AppImage",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "deb",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
+      "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }, { "target": "deb", "arch": ["x64", "arm64"] }],
       "category": "Development",
       "maintainer": "hybeprojects <contact@hybe.pro>",
       "icon": "main/assets/icon.png",
@@ -133,27 +82,13 @@
     },
     "deb": {
       "artifactName": "BLCKBOLT-Browser-${version}-${arch}.deb",
-      "depends": [
-        "libappindicator1",
-        "libnotify-bin"
-      ]
+      "depends": ["libappindicator1", "libnotify-bin"]
     },
-    "protocols": [
-      {
-        "name": "BLCKBOLT Protocol",
-        "schemes": [
-          "blckbolt"
-        ],
-        "role": "Viewer"
-      }
-    ],
+    "protocols": [{ "name": "BLCKBOLT Protocol", "schemes": ["blckbolt"], "role": "Viewer" }],
     "mac": {
       "category": "public.app-category.developer-tools",
       "icon": "main/assets/icon.icns",
-      "target": [
-        "dmg",
-        "zip"
-      ],
+      "target": ["dmg", "zip"],
       "hardenedRuntime": true
     }
   }
