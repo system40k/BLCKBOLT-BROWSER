@@ -1,8 +1,7 @@
-// Security-first Electron bootstrap.
-// This module is loaded before main/main.js so security policy is installed
-// before any BrowserWindow or <webview> can be created.
+// Security-first Electron bootstrap. Loaded before main/main.js.
 const { app, ipcMain, session } = require('electron');
 const path = require('path');
+const { fileURLToPath } = require('url');
 
 const APP_ROOT = path.resolve(__dirname, '..');
 const RENDERER_ROOT = path.join(APP_ROOT, 'renderer', 'out');
@@ -14,17 +13,14 @@ function isTrustedUiUrl(rawUrl) {
     try {
       const u = new URL(rawUrl);
       if ((u.protocol === 'http:' || u.protocol === 'https:') &&
-          (u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '::1')) {
-        return true;
-      }
+          ['localhost', '127.0.0.1', '[::1]'].includes(u.hostname)) return true;
     } catch (_) {}
   }
 
   try {
-    const u = new URL(rawUrl);
-    if (u.protocol !== 'file:') return false;
-    const filePath = path.resolve(decodeURIComponent(u.pathname));
-    return filePath === path.join(RENDERER_ROOT, 'index.html') || filePath.startsWith(`${RENDERER_ROOT}${path.sep}`);
+    const filePath = path.resolve(fileURLToPath(rawUrl));
+    const rendererRoot = path.resolve(RENDERER_ROOT);
+    return filePath === path.join(rendererRoot, 'index.html') || filePath.startsWith(`${rendererRoot}${path.sep}`);
   } catch (_) {
     return false;
   }
@@ -40,11 +36,8 @@ function isAllowedWebUrl(rawUrl) {
 }
 
 function assertTrustedIpc(event) {
-  const senderFrame = event && event.senderFrame;
-  const senderUrl = senderFrame && senderFrame.url;
-  if (!isTrustedUiUrl(senderUrl)) {
-    throw new Error('Blocked IPC request from untrusted renderer');
-  }
+  const senderUrl = event && event.senderFrame && event.senderFrame.url;
+  if (!isTrustedUiUrl(senderUrl)) throw new Error('Blocked IPC request from untrusted renderer');
 }
 
 // Enforce sender validation on every IPC channel registered by main.js.
@@ -60,18 +53,16 @@ ipcMain.on = (channel, listener) => originalOn(channel, (event, ...args) => {
 });
 
 app.on('web-contents-created', (_event, contents) => {
-  // Keep the application renderer on its own local origin.
   contents.on('will-navigate', (event, url) => {
     if (contents.getType() === 'webview') {
       if (!isAllowedWebUrl(url)) event.preventDefault();
       return;
     }
-
     if (!isTrustedUiUrl(url)) event.preventDefault();
   });
 
-  // Validate and harden every dynamically-created <webview>.
   contents.on('will-attach-webview', (event, webPreferences, params) => {
+    // Never inherit or accept a renderer-supplied preload for remote content.
     delete webPreferences.preload;
     delete webPreferences.preloadURL;
     webPreferences.nodeIntegration = false;
@@ -90,13 +81,11 @@ app.on('web-contents-created', (_event, contents) => {
 
 app.whenReady().then(() => {
   const ses = session.defaultSession;
-
-  // Deny powerful permissions by default. A future permission UI can grant
-  // individual permissions after an explicit user gesture.
+  // Privacy-first default: camera, microphone, geolocation, notifications,
+  // MIDI/HID/USB and other powerful web permissions require an explicit grant
+  // path to be implemented rather than being silently exposed.
   ses.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   ses.setPermissionCheckHandler(() => false);
 });
 
-// main.js owns application lifecycle and IPC registration; load it only after
-// the bootstrap hooks above have been installed.
 require('./main');

@@ -38,16 +38,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
-
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: '24'
           cache: npm
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-
       - name: Verify release signing configuration
         shell: bash
         env:
@@ -79,21 +76,16 @@ jobs:
             echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
             echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
           fi
-
       - name: Lint
         run: npm run lint
-
       - name: Typecheck
         run: npm run typecheck
-
       - name: Security audit
         run: npm audit --audit-level=high
-
       - name: Build release artifacts
         run: npm run build:${{ matrix.target }}
-
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: blckbolt-release-${{ matrix.artifact }}
           path: dist/
@@ -105,33 +97,26 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
       - name: Download Windows artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: blckbolt-release-windows
           path: release/windows
-
       - name: Download macOS artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: blckbolt-release-macos
           path: release/macos
-
       - name: Download Linux artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: blckbolt-release-linux
           path: release/linux
-
-      - name: Create release
+      - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        shell: bash
         run: |
-          gh release create "$RELEASE_TAG" release/**/* \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "BLCKBOLT Browser $RELEASE_TAG" \
-            --generate-notes
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "BLCKBOLT Browser $RELEASE_TAG" --generate-notes
+          find release -type f -print0 | xargs -0 gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber
