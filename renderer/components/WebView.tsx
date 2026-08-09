@@ -20,7 +20,7 @@ function attachListeners(
     if (!e || typeof e.url !== 'string') return
     onTabUpdate(tabId, {
       url: e.url,
-      secure: e.url.startsWith('https://') || e.url.startsWith('about:') || e.url.startsWith('file:'),
+      secure: e.url.startsWith('https://') || e.url.startsWith('about:'),
       canGoBack: !!el.canGoBack?.(),
       canGoForward: !!el.canGoForward?.(),
     })
@@ -100,25 +100,21 @@ export default function WebView({ tabs, activeTabId, webviewRefs, onTabUpdate, o
               <webview
                 ref={(el: any) => {
                   if (!el) {
-                    // Element removed (tab closed) — drop the stale reference.
                     delete webviewRefs.current[tab.id]
                     return
                   }
                   if (webviewRefs.current[tab.id] !== el) {
                     webviewRefs.current[tab.id] = el
-                    // Attach listeners once per element instance.
                     attachListeners(el, tab.id, { onTabUpdate, onNewTab })
                   }
                 }}
                 src={tab.url}
                 className="h-full w-full bg-slate-950"
-                allowpopups={true}
               />
             </div>
           )
         })}
 
-        {/* Loading shimmer overlay for the active tab */}
         {tabs.find((t) => t.id === activeTabId)?.loading && (
           <div className="pointer-events-none absolute inset-x-0 top-0 h-0.5 overflow-hidden">
             <div className="h-full w-1/3 bg-gradient-to-r from-transparent via-accent to-transparent animate-loading-bar" />
@@ -126,7 +122,6 @@ export default function WebView({ tabs, activeTabId, webviewRefs, onTabUpdate, o
         )}
       </div>
 
-      {/* Status bar */}
       <div className="h-6 bg-slate-900/80 border-t border-white/5 flex items-center px-4 justify-between text-[10px] font-medium text-slate-500">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1">
@@ -134,15 +129,12 @@ export default function WebView({ tabs, activeTabId, webviewRefs, onTabUpdate, o
             READY
           </span>
           <span className="opacity-40">|</span>
-          <span>WEBRTC: LOCKED</span>
+          <span>WEBRTC: POLICY ENFORCED</span>
           <span className="opacity-40">|</span>
           <span>{tabs.length} TAB{tabs.length === 1 ? '' : 'S'}</span>
         </div>
-        <div className="uppercase tracking-widest opacity-60">Secure Sandbox Environment</div>
+        <div className="uppercase tracking-widest opacity-60">Security Policy Active</div>
       </div>
     </div>
   )
 }
-
-
-
