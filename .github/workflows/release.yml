@@ -3,88 +3,143 @@ name: Release BLCKBOLT-BROWSER
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v0.1.0
+      - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to publish'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
+  build:
+    name: Build ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        node-version: [20.x]
-
+        include:
+          - os: windows-latest
+            target: win
+            artifact: windows
+          - os: macos-latest
+            target: mac
+            artifact: macos
+          - os: ubuntu-latest
+            target: linux
+            artifact: linux
     steps:
-      # 1. Checkout repo
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      # 2. Setup Node.js
+      - name: Checkout
+        uses: actions/checkout@v5
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: ${{ matrix.node-version }}
-
-      # 3. Install dependencies
-      - name: Install dependencies
-        run: npm ci
-
-      # 4. Install Wine32 for Windows builds on Linux
-      - name: Install Wine32 (Linux only)
-        if: matrix.os == 'ubuntu-latest'
+          node-version: '24'
+          cache: npm
+      - name: Install dependencies from package manifest
+        shell: bash
         run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          sudo apt-get install -y wine32:i386 xvfb
-
-      # 5. Build the Electron app
-      - name: Build Electron App
+          rm -f package-lock.json
+          npm install --no-audit --no-fund
+      - name: Generate resolved lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify release signing configuration
+        shell: bash
+        env:
+          WINDOWS_CERT: ${{ secrets.WINDOWS_CERT_BASE64 }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          MAC_CERT: ${{ secrets.MAC_CERT_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          if [ "${{ matrix.os }}" == "ubuntu-latest" ]; then
-            npx electron-builder --linux
-          elif [ "${{ matrix.os }}" == "windows-latest" ]; then
-            npx electron-builder --win --publish never --config.extraMetadata.build.win.certificateSubjectName=""
-          elif [ "${{ matrix.os }}" == "macos-latest" ]; then
-            npx electron-builder --mac
+          if [ "${{ matrix.target }}" = "win" ]; then
+            test -n "$WINDOWS_CERT" || { echo "Missing WINDOWS_CERT_BASE64"; exit 1; }
+            test -n "$WINDOWS_CERT_PASSWORD" || { echo "Missing WINDOWS_CERT_PASSWORD"; exit 1; }
+            printf '%s' "$WINDOWS_CERT" | base64 --decode > "$RUNNER_TEMP/windows-cert.p12"
+            echo "CSC_LINK=$RUNNER_TEMP/windows-cert.p12" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$WINDOWS_CERT_PASSWORD" >> "$GITHUB_ENV"
           fi
-
-      # 6. Upload build artifacts temporarily
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v3
+          if [ "${{ matrix.target }}" = "mac" ]; then
+            test -n "$MAC_CERT" || { echo "Missing MAC_CERT_BASE64"; exit 1; }
+            test -n "$MAC_CERT_PASSWORD" || { echo "Missing MAC_CERT_PASSWORD"; exit 1; }
+            test -n "$APPLE_ID" || { echo "Missing APPLE_ID"; exit 1; }
+            test -n "$APPLE_PASSWORD" || { echo "Missing APPLE_APP_SPECIFIC_PASSWORD"; exit 1; }
+            test -n "$APPLE_TEAM_ID" || { echo "Missing APPLE_TEAM_ID"; exit 1; }
+            printf '%s' "$MAC_CERT" | base64 --decode > "$RUNNER_TEMP/mac-cert.p12"
+            echo "CSC_LINK=$RUNNER_TEMP/mac-cert.p12" >> "$GITHUB_ENV"
+            echo "CSC_KEY_PASSWORD=$MAC_CERT_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_ID=$APPLE_ID" >> "$GITHUB_ENV"
+            echo "APPLE_APP_SPECIFIC_PASSWORD=$APPLE_PASSWORD" >> "$GITHUB_ENV"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID" >> "$GITHUB_ENV"
+          fi
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Runtime dependency security audit
+        run: npm run security:audit
+      - name: Full dependency audit report
+        shell: bash
+        run: |
+          npm run security:audit:full > audit-${{ matrix.artifact }}.txt 2>&1 || true
+      - name: Build release artifacts
+        run: npm run build:${{ matrix.target }}
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v7
         with:
-          name: BLCKBOLT-BROWSER-${{ matrix.os }}
-          path: dist/**/*
+          name: blckbolt-release-${{ matrix.artifact }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload generated lockfile
+        uses: actions/upload-artifact@v7
+        with:
+          name: blckbolt-release-lock-${{ matrix.artifact }}
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload audit report
+        uses: actions/upload-artifact@v7
+        with:
+          name: blckbolt-release-audit-${{ matrix.artifact }}
+          path: audit-${{ matrix.artifact }}.txt
+          if-no-files-found: error
+          retention-days: 7
 
-  release:
-    needs: build-and-release
+  publish:
+    name: Publish GitHub release
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      # 1. Download all artifacts from build job
-      - name: Download Artifacts
-        uses: actions/download-artifact@v3
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v8
         with:
-          path: release-builds
-
-      # 2. Create GitHub Release
-      - name: Create GitHub Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
+          name: blckbolt-release-windows
+          path: release/windows
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v8
         with:
-          tag_name: ${{ github.ref_name }}
-          name: BLCKBOLT-BROWSER ${{ github.ref_name }}
-          body: |
-            BLCKBOLT-BROWSER pre-built binaries for Linux, Windows, and macOS.
-            This release includes:
-            - Linux: .AppImage, .deb
-            - Windows: .exe (unsigned)
-            - macOS: .dmg
+          name: blckbolt-release-macos
+          path: release/macos
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: blckbolt-release-linux
+          path: release/linux
+      - name: Publish release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # 3. Upload artifacts to release
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v1
-        with:
-          files: release-builds/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        shell: bash
+        run: |
+          gh release create "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --title "BLCKBOLT Browser $RELEASE_TAG" --generate-notes
+          find release -type f -print0 | xargs -0 gh release upload "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --clobber
